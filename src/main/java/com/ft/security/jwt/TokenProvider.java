@@ -2,6 +2,7 @@ package com.ft.security.jwt;
 
 import io.github.jhipster.config.JHipsterProperties;
 
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
@@ -15,95 +16,82 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 
-import io.jsonwebtoken.*;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
 
 @Component
 public class TokenProvider {
 
-    private final Logger log = LoggerFactory.getLogger(TokenProvider.class);
+	private final Logger log = LoggerFactory.getLogger(TokenProvider.class);
 
-    private static final String AUTHORITIES_KEY = "auth";
+	private static final String AUTHORITIES_KEY = "auth";
 
-    private String secretKey;
+	private String secretKey;
 
-    private long tokenValidityInMilliseconds;
+	private long tokenValidityInMilliseconds;
 
-    private long tokenValidityInMillisecondsForRememberMe;
+	private long tokenValidityInMillisecondsForRememberMe;
 
-    private final JHipsterProperties jHipsterProperties;
+	private final JHipsterProperties jHipsterProperties;
 
-    public TokenProvider(JHipsterProperties jHipsterProperties) {
-        this.jHipsterProperties = jHipsterProperties;
-    }
+	private Algorithm algorithm;
 
-    @PostConstruct
-    public void init() {
-        this.secretKey =
-            jHipsterProperties.getSecurity().getAuthentication().getJwt().getSecret();
+	private JWTVerifier verifier;
 
-        this.tokenValidityInMilliseconds =
-            1000 * jHipsterProperties.getSecurity().getAuthentication().getJwt().getTokenValidityInSeconds();
-        this.tokenValidityInMillisecondsForRememberMe =
-            1000 * jHipsterProperties.getSecurity().getAuthentication().getJwt().getTokenValidityInSecondsForRememberMe();
-    }
+	public TokenProvider(JHipsterProperties jHipsterProperties) {
+		this.jHipsterProperties = jHipsterProperties;
+	}
 
-    public String createToken(Authentication authentication, boolean rememberMe) {
-        String authorities = authentication.getAuthorities().stream()
-            .map(GrantedAuthority::getAuthority)
-            .collect(Collectors.joining(","));
+	@PostConstruct
+	public void init() throws Exception {
+		this.secretKey = jHipsterProperties.getSecurity().getAuthentication().getJwt().getSecret();
 
-        long now = (new Date()).getTime();
-        Date validity;
-        if (rememberMe) {
-            validity = new Date(now + this.tokenValidityInMillisecondsForRememberMe);
-        } else {
-            validity = new Date(now + this.tokenValidityInMilliseconds);
-        }
+		this.tokenValidityInMilliseconds = 1000
+				* jHipsterProperties.getSecurity().getAuthentication().getJwt().getTokenValidityInSeconds();
+		this.tokenValidityInMillisecondsForRememberMe = 1000 * jHipsterProperties.getSecurity().getAuthentication()
+				.getJwt().getTokenValidityInSecondsForRememberMe();
+		// OAUTH0
+		this.algorithm = Algorithm.HMAC512(this.secretKey);
+		this.verifier = JWT.require(algorithm)
+				// .withIssuer("auth0")
+				.build();
+	}
 
-        return Jwts.builder()
-            .setSubject(authentication.getName())
-            .claim(AUTHORITIES_KEY, authorities)
-            .signWith(SignatureAlgorithm.HS512, secretKey)
-            .setExpiration(validity)
-            .compact();
-    }
+	public String createToken(Authentication authentication, boolean rememberMe) {
+		String authorities = authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+				.collect(Collectors.joining(","));
+		log.debug("Authorities", authorities);
+		long now = (new Date()).getTime();
+		Date validity;
+		if (rememberMe) {
+			validity = new Date(now + this.tokenValidityInMillisecondsForRememberMe);
+		} else {
+			validity = new Date(now + this.tokenValidityInMilliseconds);
+		}
+		// OAUTH2
+		return JWT.create().withSubject(authentication.getName()).withClaim(AUTHORITIES_KEY, authorities)
+				.withExpiresAt(validity)
+				// .withIssuer("auth0")
+				.sign(algorithm);
+	}
 
-    public Authentication getAuthentication(String token) {
-        Claims claims = Jwts.parser()
-            .setSigningKey(secretKey)
-            .parseClaimsJws(token)
-            .getBody();
+	public Authentication getAuthentication(String token) {
+		try {
+			DecodedJWT claims = verifier.verify(token);
+			log.debug("claims" + claims);
 
-        Collection<? extends GrantedAuthority> authorities =
-            Arrays.stream(claims.get(AUTHORITIES_KEY).toString().split(","))
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
+			Collection<? extends GrantedAuthority> authorities = Arrays
+					.stream(claims.getClaim(AUTHORITIES_KEY).asString().split(",")).map(SimpleGrantedAuthority::new)
+					.collect(Collectors.toList());
+			log.debug("Authorities" + authorities);
+			User principal = new User(claims.getSubject(), "", authorities);
 
-        User principal = new User(claims.getSubject(), "", authorities);
-
-        return new UsernamePasswordAuthenticationToken(principal, token, authorities);
-    }
-
-    public boolean validateToken(String authToken) {
-        try {
-            Jwts.parser().setSigningKey(secretKey).parseClaimsJws(authToken);
-            return true;
-        } catch (SignatureException e) {
-            log.info("Invalid JWT signature.");
-            log.trace("Invalid JWT signature trace: {}", e);
-        } catch (MalformedJwtException e) {
-            log.info("Invalid JWT token.");
-            log.trace("Invalid JWT token trace: {}", e);
-        } catch (ExpiredJwtException e) {
-            log.info("Expired JWT token.");
-            log.trace("Expired JWT token trace: {}", e);
-        } catch (UnsupportedJwtException e) {
-            log.info("Unsupported JWT token.");
-            log.trace("Unsupported JWT token trace: {}", e);
-        } catch (IllegalArgumentException e) {
-            log.info("JWT token compact of handler are invalid.");
-            log.trace("JWT token compact of handler are invalid trace: {}", e);
-        }
-        return false;
-    }
+			return new UsernamePasswordAuthenticationToken(principal, token, authorities);
+		} catch (Exception e) {
+			log.error("Failed to authenticate", e);
+		}
+		return null;
+	}
 }
