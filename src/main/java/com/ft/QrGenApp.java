@@ -1,6 +1,5 @@
 package com.ft;
 
-import com.ft.client.OAuth2InterceptedFeignConfiguration;
 import com.ft.config.ApplicationProperties;
 import com.ft.config.DefaultProfileUtil;
 
@@ -14,7 +13,6 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.core.env.Environment;
 
 import javax.annotation.PostConstruct;
@@ -23,9 +21,7 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 
-@ComponentScan(
-    excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = OAuth2InterceptedFeignConfiguration.class)
-)
+@ComponentScan
 @EnableAutoConfiguration(exclude = {MetricFilterAutoConfiguration.class, MetricRepositoryAutoConfiguration.class})
 @EnableConfigurationProperties({ApplicationProperties.class})
 @EnableDiscoveryClient

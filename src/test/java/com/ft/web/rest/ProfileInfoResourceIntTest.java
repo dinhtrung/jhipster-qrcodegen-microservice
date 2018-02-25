@@ -2,7 +2,6 @@ package com.ft.web.rest;
 
 import io.github.jhipster.config.JHipsterProperties;
 import com.ft.QrGenApp;
-import com.ft.config.SecurityBeanOverrideConfiguration;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -26,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @see ProfileInfoResource
  **/
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = {QrGenApp.class, SecurityBeanOverrideConfiguration.class})
+@SpringBootTest(classes = QrGenApp.class)
 public class ProfileInfoResourceIntTest {
 
     @Mock

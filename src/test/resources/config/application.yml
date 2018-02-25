@@ -66,11 +66,6 @@ jhipster:
                 secret: cae8ec99e8e60204e8913735b818e30601d1dcea
                 # Token is valid 24 hours
                 token-validity-in-seconds: 86400
-        client-authorization:
-            access-token-uri: http://uaa/oauth/token
-            token-service-id: uaa
-            client-id: internal
-            client-secret: internal
     metrics: # DropWizard Metrics configuration, used by MetricsConfiguration
         jmx.enabled: true
         logs: # Reports Dropwizard metrics in the logs

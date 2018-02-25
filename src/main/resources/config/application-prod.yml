@@ -91,11 +91,12 @@ jhipster:
                 update-interval: 3
                 url:
     security:
-        client-authorization:
-            access-token-uri: http://uaa/oauth/token
-            token-service-id: uaa
-            client-id: internal
-            client-secret: internal
+        authentication:
+            jwt:
+                secret: cae8ec99e8e60204e8913735b818e30601d1dcea
+                # Token is valid 24 hours
+                token-validity-in-seconds: 86400
+                token-validity-in-seconds-for-remember-me: 2592000
     mail: # specific JHipster mail property, for standard properties see MailProperties
         from: qrGen@localhost
         base-url: http://my-server-url-to-change # Modify according to your server's URL
@@ -122,17 +123,6 @@ jhipster:
             enabled: false
             # edit spring.metrics.export.delay-millis to set report frequency
 
-oauth2:
-    signature-verification:
-        public-key-endpoint-uri: http://uaa/oauth/token_key
-        #ttl for public keys to verify JWT tokens (in ms)
-        ttl: 3600000
-        #max. rate at which public keys will be fetched (in ms)
-        public-key-refresh-rate-limit: 10000
-    web-client-configuration:
-        #change client secret in production, keep in sync with UAA configuration
-        client-id: web_app
-        secret: changeit
 
 # ===================================================================
 # Application specific properties

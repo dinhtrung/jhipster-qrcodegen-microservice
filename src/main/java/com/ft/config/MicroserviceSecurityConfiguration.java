@@ -1,40 +1,57 @@
 package com.ft.config;
 
-import com.ft.config.oauth2.OAuth2JwtAccessTokenConverter;
-import com.ft.config.oauth2.OAuth2Properties;
-import com.ft.security.oauth2.OAuth2SignatureVerifierClient;
 import com.ft.security.AuthoritiesConstants;
+import com.ft.security.jwt.JWTConfigurer;
+import com.ft.security.jwt.TokenProvider;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.cloud.client.loadbalancer.RestTemplateCustomizer;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.builders.WebSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
-import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
-import org.springframework.security.oauth2.provider.token.TokenStore;
-import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
-import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.security.data.repository.query.SecurityEvaluationContextExtension;
+import org.zalando.problem.spring.web.advice.security.SecurityProblemSupport;
 
 @Configuration
-@EnableResourceServer
+@Import(SecurityProblemSupport.class)
+@EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true)
-public class MicroserviceSecurityConfiguration extends ResourceServerConfigurerAdapter {
-    private final OAuth2Properties oAuth2Properties;
+public class MicroserviceSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
-    public MicroserviceSecurityConfiguration(OAuth2Properties oAuth2Properties) {
-        this.oAuth2Properties = oAuth2Properties;
+    private final TokenProvider tokenProvider;
+
+    private final SecurityProblemSupport problemSupport;
+
+    public MicroserviceSecurityConfiguration(TokenProvider tokenProvider, SecurityProblemSupport problemSupport) {
+        this.tokenProvider = tokenProvider;
+        this.problemSupport = problemSupport;
     }
 
     @Override
-    public void configure(HttpSecurity http) throws Exception {
+    public void configure(WebSecurity web) throws Exception {
+        web.ignoring()
+            .antMatchers(HttpMethod.OPTIONS, "/**")
+            .antMatchers("/app/**/*.{js,html}")
+            .antMatchers("/bower_components/**")
+            .antMatchers("/i18n/**")
+            .antMatchers("/content/**")
+            .antMatchers("/swagger-ui/index.html")
+            .antMatchers("/test/**")
+            .antMatchers("/h2-console/**");
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
         http
             .csrf()
             .disable()
+            .exceptionHandling()
+            .authenticationEntryPoint(problemSupport)
+            .accessDeniedHandler(problemSupport)
+        .and()
             .headers()
             .frameOptions()
             .disable()
@@ -43,34 +60,20 @@ public class MicroserviceSecurityConfiguration extends ResourceServerConfigurerA
             .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         .and()
             .authorizeRequests()
-            .antMatchers("/api/profile-info").permitAll()
             .antMatchers("/api/**").authenticated()
             .antMatchers("/management/health").permitAll()
             .antMatchers("/management/**").hasAuthority(AuthoritiesConstants.ADMIN)
-            .antMatchers("/swagger-resources/configuration/ui").permitAll();
+            .antMatchers("/swagger-resources/configuration/ui").permitAll()
+        .and()
+            .apply(securityConfigurerAdapter());
+    }
+
+    private JWTConfigurer securityConfigurerAdapter() {
+        return new JWTConfigurer(tokenProvider);
     }
 
     @Bean
-    public TokenStore tokenStore(JwtAccessTokenConverter jwtAccessTokenConverter) {
-        return new JwtTokenStore(jwtAccessTokenConverter);
-    }
-
-    @Bean
-    public JwtAccessTokenConverter jwtAccessTokenConverter(OAuth2SignatureVerifierClient signatureVerifierClient) {
-        return new OAuth2JwtAccessTokenConverter(oAuth2Properties, signatureVerifierClient);
-    }
-
-    @Bean
-	@Qualifier("loadBalancedRestTemplate")
-    public RestTemplate loadBalancedRestTemplate(RestTemplateCustomizer customizer) {
-        RestTemplate restTemplate = new RestTemplate();
-        customizer.customize(restTemplate);
-        return restTemplate;
-    }
-
-    @Bean
-    @Qualifier("vanillaRestTemplate")
-    public RestTemplate vanillaRestTemplate() {
-        return new RestTemplate();
+    public SecurityEvaluationContextExtension securityEvaluationContextExtension() {
+        return new SecurityEvaluationContextExtension();
     }
 }
